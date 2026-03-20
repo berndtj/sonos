@@ -39,6 +39,8 @@ SPEAKERS = [
 ]
 
 class Button:
+    """Base class for all Stream Deck key buttons."""
+
     _icon_background_active = (0, 150, 0)
     _icon_background_inactive = (0, 0, 0)
 
@@ -46,32 +48,40 @@ class Button:
         self._pressed = False
 
     def render(self, neo: SonosDeckNeo) -> None:
+        """Draw this button's current state onto the deck key."""
         pass
 
     def on_press(self, neo: SonosDeckNeo, key: int) -> None:
+        """Handle key press — marks button as pressed and logs the event."""
         self._pressed = True
         print("Deck {} Key {} pressed".format(neo._deck.id(), key), flush=True)
 
     def on_release(self, neo: SonosDeckNeo, key: int) -> None:
+        """Handle key release — marks button as released and logs the event."""
         self._pressed = False
         print("Deck {} Key {} released".format(neo._deck.id(), key), flush=True)
 
 
 class SpeakerButton(Button):
+    """Button representing a Sonos speaker that can be joined to or removed from the group."""
+
     _icon = os.path.join(ASSETS_PATH, "speaker-icon.png")
 
     def __init__(self, speaker: soco.core.SoCo):
         super().__init__()
         self._speaker = speaker
-        self._cancel = False
+        self._cancel = False  # set by VolumeButton to suppress join/unjoin on release
 
     def is_active(self, neo: SonosDeckNeo) -> bool:
+        """Return True if this speaker is currently in the leader's group."""
         return self._speaker in neo._leader.group
 
     def name(self) -> str:
+        """Return the speaker's player name."""
         return self._speaker.player_name
 
     def on_release(self, neo: SonosDeckNeo, key: int) -> None:
+        """Toggle this speaker's membership in the group, unless cancelled by a volume adjustment."""
         super().on_release(neo, key)
         if self._cancel:
             self._cancel = False
@@ -110,6 +120,7 @@ class SpeakerButton(Button):
 
 
 class PlayURLButton(Button):
+    """Button that plays a stream URL on the leader when pressed."""
 
     def __init__(self, name: str, url: str, icon: str):
         super().__init__()
@@ -121,10 +132,12 @@ class PlayURLButton(Button):
         return self._name
 
     def is_active(self, neo: SonosDeckNeo) -> bool:
+        """Return True if this stream is currently playing."""
         title = neo.get_current_title()
         return neo.get_current_title() == self._name
 
     def on_press(self, neo: SonosDeckNeo, key: int) -> None:
+        """Start playing this button's stream URL on the leader."""
         super().on_press(neo, key)
         neo._leader.play_uri(title=self._name, uri=self._url, force_radio=True)
         self.render(neo, key)
@@ -158,10 +171,13 @@ class PlayURLButton(Button):
 
 
 class StopButton(Button):
+    """Button that stops playback on the leader."""
+
     _icon = os.path.join(ASSETS_PATH, "stop.png")
     _name = "Stop"
 
     def on_press(self, neo: SonosDeckNeo, key: int) -> None:
+        """Stop playback on the leader."""
         neo._leader.stop()
 
     def render(self, neo: SonosDeckNeo, key: int) -> None:
@@ -188,12 +204,18 @@ class StopButton(Button):
 
 
 class VolumeButton(Button):
+    """Button that raises or lowers volume by 5, snapping to the nearest multiple of 5.
+
+    If a SpeakerButton is held simultaneously, adjusts only that speaker's volume;
+    otherwise adjusts the whole group.
+    """
 
     def __init__(self, up: bool):
         super().__init__()
         self._up = up
 
     def on_press(self, neo: SonosDeckNeo, key: int) -> None:
+        """Adjust volume up or down, targeting a held speaker or the full group."""
         super().on_press(neo, key)
         target = neo._leader.group
         target_button = None
@@ -205,9 +227,9 @@ class VolumeButton(Button):
 
         snapped = round(target.volume / 5) * 5
         if self._up:
-            target.volume = snapped + 5
+            target.volume = min(100, snapped + 5)
         else:
-            target.volume = snapped - 5
+            target.volume = max(0, snapped - 5)
         if target_button is not None:
             target_button[1]._cancel = True
             target_button[1].render(neo, target_button[0])
@@ -215,6 +237,7 @@ class VolumeButton(Button):
             neo.refresh()
 
     def render(self, neo: SonosDeckNeo, key: int) -> None:
+        """Color the key blue for volume up, red for volume down."""
         if self._up:
             neo._deck.set_key_color(key, 0, 0, 255)
         else:
@@ -222,6 +245,12 @@ class VolumeButton(Button):
 
 
 class SonosDeckNeo:
+    """Manages a Stream Deck Neo configured as a Sonos controller.
+
+    Maintains a set of buttons mapped to deck keys and routes key events to them.
+    One Sonos speaker acts as the group leader; other speakers can join or leave
+    its group via SpeakerButtons.
+    """
 
     def __init__(self, deck: StreamDeckNeo, leader_name: str):
         self._deck = deck
@@ -231,6 +260,7 @@ class SonosDeckNeo:
         self._deck.set_key_callback(self.__callback)
 
     def __callback(self, deck: StreamDeckNeo, key: int, pressed: bool) -> None:
+        """Dispatch press/release events from the deck to the appropriate button."""
         button = self._buttons.get(key) or self._speaker_buttons.get(key)
         if button is None:
             return
@@ -241,17 +271,21 @@ class SonosDeckNeo:
         button.render(self, key)
 
     def add_speaker(self, key: int, name: str) -> None:
+        """Register a Sonos speaker as a SpeakerButton on the given key."""
         speaker = soco.discovery.by_name(name)
         button = SpeakerButton(speaker=speaker)
         self._speaker_buttons[key] = button
 
     def add_button(self, key: int, button: Button) -> None:
+        """Register a button on the given key."""
         self._buttons[key] = button
 
     def get_current_title(self) -> str:
+        """Return the title of the track currently playing on the leader."""
         return self._leader.get_current_track_info()["title"]
 
     def render_screen(self) -> None:
+        """Update the deck's LCD screen with the current track title and group volume."""
         image = PILHelper.create_screen_image(self._deck)
         # Load a custom TrueType font and use it to create an image
         draw = ImageDraw.Draw(image)
@@ -261,6 +295,7 @@ class SonosDeckNeo:
         self._deck.set_screen_image(PILHelper.to_native_screen_format(self._deck, image))
 
     def refresh(self) -> None:
+        """Re-render all buttons and the screen to reflect current Sonos state."""
         for key, speaker in self._speaker_buttons.items():
             speaker.render(self, key)
 
