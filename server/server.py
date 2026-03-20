@@ -17,15 +17,9 @@ import os
 import sys
 import threading
 import time
-import typing
-import random
-
-from collections.abc import Mapping
-
 import soco
 
 from PIL import Image, ImageDraw, ImageFont
-from StreamDeck.Devices.StreamDeckNeo import StreamDeckNeo
 from StreamDeck.DeviceManager import DeviceManager
 from StreamDeck.ImageHelpers import PILHelper
 from StreamDeck.Transport.Transport import TransportError
@@ -208,10 +202,12 @@ class VolumeButton(Button):
                 target = button._speaker
                 target_button = (key, button)
                 break
+
+        snapped = round(target.volume / 5) * 5
         if self._up:
-            target.set_relative_volume(5)
+            target.volume = snapped + 5
         else:
-            target.set_relative_volume(-5)
+            target.volume = snapped - 5
         if target_button is not None:
             target_button[1]._cancel = True
             target_button[1].render(neo, target_button[0])
@@ -230,8 +226,8 @@ class SonosDeckNeo:
     def __init__(self, deck: StreamDeckNeo, leader_name: str):
         self._deck = deck
         self._leader: soco.core.SoCo = soco.discovery.by_name(leader_name)
-        self._buttons: typing.Dict[int, Button] = {}
-        self._speaker_buttons: typing.Dict[int, SpeakerButton] = {}
+        self._buttons: dict[int, Button] = {}
+        self._speaker_buttons: dict[int, SpeakerButton] = {}
         self._deck.set_key_callback(self.__callback)
 
     def __callback(self, deck: StreamDeckNeo, key: int, pressed: bool) -> None:
@@ -274,7 +270,7 @@ class SonosDeckNeo:
         self.render_screen()
 
 
-if __name__ == "__main__":
+def main():
     argparser = argparse.ArgumentParser()
     argparser.add_argument("-z", "--zone", help="Speaker name representing the control group", default="Family Room")
     args = argparser.parse_args()
@@ -313,8 +309,20 @@ if __name__ == "__main__":
 
     neo.refresh()
 
+    def refresh_loop():
+        while True:
+            time.sleep(5)
+            neo.refresh()
+
+    t = threading.Thread(target=refresh_loop, daemon=True)
+    t.start()
+
     for t in threading.enumerate():
         try:
             t.join()
         except (TransportError, RuntimeError):
             pass
+
+
+if __name__ == "__main__":
+    main()
