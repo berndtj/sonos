@@ -10,6 +10,8 @@
 # Example script showing basic library usage - updating key images with new
 # tiles gnerated at runtime, and responding to button state change events.
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
@@ -96,7 +98,7 @@ class SpeakerButton(Button):
         background = self._icon_background_inactive
         if self.is_active(neo):
             background = self._icon_background_active
-        image = PILHelper.create_scaled_key_image(deck, icon, margins=[0, 0, 40, 0], background=background)
+        image = PILHelper.create_scaled_key_image(neo._deck, icon, margins=[0, 0, 40, 0], background=background)
 
         # Load a custom TrueType font and use it to overlay the key index, draw key
         # label onto the image a few pixels from the bottom of the key.
@@ -105,7 +107,7 @@ class SpeakerButton(Button):
         draw.text((image.width / 2, image.height - 25), text=self.name(), font=font, anchor="ms", fill="white")
         draw.text((image.width / 2, image.height - 5), text="vol: %d" % (self._speaker.volume), font=font, anchor="ms", fill="white")
 
-        native_image = PILHelper.to_native_key_format(deck, image)
+        native_image = PILHelper.to_native_key_format(neo._deck, image)
 
         with neo._deck:
             # Update requested key with the generated image.
@@ -143,9 +145,9 @@ class PlayURLButton(Button):
             background = self._icon_background_active
         if self._icon:
             icon = Image.open(self._icon)
-            image = PILHelper.create_scaled_key_image(deck, icon, margins=[0, 0, 20, 0], background=background)
+            image = PILHelper.create_scaled_key_image(neo._deck, icon, margins=[0, 0, 20, 0], background=background)
         else:
-            image = PILHelper.create_key_image(deck, background=background)
+            image = PILHelper.create_key_image(neo._deck, background=background)
 
         # Load a custom TrueType font and use it to overlay the key index, draw key
         # label onto the image a few pixels from the bottom of the key.
@@ -153,7 +155,7 @@ class PlayURLButton(Button):
         font = ImageFont.truetype(FONT_PATH, 14)
         draw.text((image.width / 2, image.height - 5), text=self.name(), font=font, anchor="ms", fill="white")
 
-        native_image = PILHelper.to_native_key_format(deck, image)
+        native_image = PILHelper.to_native_key_format(neo._deck, image)
 
         with neo._deck:
             # Update requested key with the generated image.
@@ -175,7 +177,7 @@ class StopButton(Button):
         image = None
         background = self._icon_background_inactive
         icon = Image.open(self._icon)
-        image = PILHelper.create_scaled_key_image(deck, icon, margins=[0, 0, 20, 0], background=background)
+        image = PILHelper.create_scaled_key_image(neo._deck, icon, margins=[0, 0, 20, 0], background=background)
 
         # Load a custom TrueType font and use it to overlay the key index, draw key
         # label onto the image a few pixels from the bottom of the key.
@@ -183,7 +185,7 @@ class StopButton(Button):
         font = ImageFont.truetype(FONT_PATH, 14)
         draw.text((image.width / 2, image.height - 5), text=self._name, font=font, anchor="ms", fill="white")
 
-        native_image = PILHelper.to_native_key_format(deck, image)
+        native_image = PILHelper.to_native_key_format(neo._deck, image)
 
         with neo._deck:
             # Update requested key with the generated image.
@@ -216,7 +218,7 @@ class VolumeButton(Button):
         else:
             neo.refresh()
 
-    def render(self, deck: StreamDeckNeo, key: int) -> None:
+    def render(self, neo: SonosDeckNeo, key: int) -> None:
         if self._up:
             neo._deck.set_key_color(key, 0, 0, 255)
         else:
