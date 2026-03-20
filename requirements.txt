@@ -1,0 +1,12 @@
+appdirs==1.4.4
+certifi==2026.2.25
+charset-normalizer==3.4.6
+idna==3.11
+ifaddr==0.2.0
+lxml==6.0.2
+pillow==12.1.1
+requests==2.32.5
+soco==0.30.14
+streamdeck==0.9.8
+urllib3==2.6.3
+xmltodict==1.0.4
